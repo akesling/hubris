@@ -91,10 +91,10 @@ impl ServerImpl {
             let departing_targets =
                 !current_presence_summary & self.last_presence_summary;
 
-            let arrived_targets = Self::map_ports(arriving_targets, |port| {
+            let arrived_targets = self.map_ports(arriving_targets, |port| {
                 self.target_arrive(port)
             });
-            let departed_targets = Self::map_ports(departing_targets, |port| {
+            let departed_targets = self.map_ports(departing_targets, |port| {
                 self.target_depart(port)
             });
 
@@ -114,22 +114,21 @@ impl ServerImpl {
     /// vector is set. Returns a bit vector with bits set for ports for which
     /// the operation was succesfull. Under normal circumstances this output
     /// vector is expected to match the input vector.
-    fn map_ports<F>(mut ports: u64, mut f: F) -> u64
+    fn map_ports<F>(&self, ports: u64, mut f: F) -> u64
     where
         F: FnMut(u8) -> Result<(), IgnitionError>,
     {
         let mut success = 0u64;
 
-        for port in 0..PORT_MAX as u8 {
-            if ports & 0x1 != 0 {
+        for port in 0..self.port_count.min(PORT_MAX) {
+            let mask = 1 << port;
+
+            if ports & mask != 0 {
                 match f(port) {
-                    Ok(()) => success |= 1 << PORT_MAX,
+                    Ok(()) => success |= mask,
                     Err(e) => ringbuf_entry!(Trace::TargetError(port, e)),
                 }
             }
-            // Advance to the next port.
-            ports >>= 1;
-            success >>= 1;
         }
 
         success
@@ -283,24 +282,23 @@ impl idl::InOrderIgnitionImpl for ServerImpl {
     fn state_dump(
         &mut self,
         _: &userlib::RecvMessage,
-    ) -> Result<[u64; PORT_MAX], RequestError> {
-        use core::cmp::min;
-
-        let mut state = [0u64; PORT_MAX];
-        let mut summary = self
+    ) -> Result<[u64; PORT_MAX as usize], RequestError> {
+        let mut state = [0u64; PORT_MAX as usize];
+        let summary = self
             .controller
             .presence_summary()
             .map_err(IgnitionError::from)
             .map_err(RequestError::from)?;
 
-        for i in 0..min(state.len(), self.port_count as usize) {
-            // Check if the present bit is set in the summary.
-            if summary & 0x1 != 0 {
-                state[i] =
-                    self.port_state(i as u8).map_err(RequestError::from)?.0;
+        for port in 0..self.port_count.min(PORT_MAX) {
+            let mask = 1 << port;
+
+            // Check if the present bit is set in the summary and fetch the
+            // state if so.
+            if summary & mask != 0 {
+                state[port as usize] =
+                    self.port_state(port as u8).map_err(RequestError::from)?.0;
             }
-            // Advance to the next port.
-            summary >>= 1;
         }
 
         Ok(state)

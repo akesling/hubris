@@ -16,9 +16,9 @@ use zerocopy::{AsBytes, FromBytes};
 // The `presence_summary` vector (see `ignition-server`) is implicitly capped at
 // 40 bits by (the RTL of the) mainboard controller. This constant is used to
 // conservatively allocate an array type which can contain the port state for
-// all ports. The actual number of pors configured in the system can be learned
+// all ports. The actual number of ports configured in the system can be learned
 // through the `port_count()` function below.
-pub const PORT_MAX: usize = 40;
+pub const PORT_MAX: u8 = 40;
 
 #[derive(
     Copy,
@@ -120,17 +120,12 @@ pub struct SystemId(pub u8);
     Display,
     PartialEq,
     Eq,
-    From,
-    FromPrimitive,
-    ToPrimitive,
-    AsBytes,
 )]
-#[repr(u8)]
 pub enum SystemType {
-    Unknown = 0,
-    Compute = 1,
-    Network = 2,
-    Power = 3,
+    Unknown,
+    Compute,
+    Network,
+    Power,
 }
 
 impl From<SystemId> for SystemType {
@@ -195,6 +190,10 @@ pub struct Counters {
     pub message_dropped: u8,
 }
 
+/// `LinkEvents` is a bitset used to report link events as observed by a
+/// particular transceiver. The `encoding_error` field originates in the
+/// transmit path if an invalid control character is encoded, the remaining
+/// events occur in the receive path.
 bitfield! {
     #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, FromBytes, AsBytes)]
     #[repr(C)]
@@ -212,6 +211,12 @@ impl LinkEvents {
     pub const ALL: Self = Self(0b111111);
 }
 
+/// Link events are observed by a transceiver, therefor each link between a
+/// Controller and Target has two sets of `LinkEvents`. The Target notifies both
+/// Controllers when events are observed by either of its transceivers. As a
+/// result each Controller keeps track of three sets of link events; its own
+/// tranceiver to the Target and both transceivers of the Target. When operating
+/// on `LinkEvents` this enum is used to select between the different sets.
 #[derive(
     Copy,
     Clone,
