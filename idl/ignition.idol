@@ -19,16 +19,13 @@ Interface(
                 err: CLike("IgnitionError"),
             ),
         ),
-        "state": (
+        "port_state": (
             doc: "Return the state for the given controller port",
             args: {
                 "port": "u8",
             },
             reply: Result(
-                ok: (
-                    type: "PortState",
-                    recv: FromPrimitive("u64"),
-                ),
+                ok: "PortState",
                 err: CLike("IgnitionError"),
             ),
         ),
@@ -43,7 +40,7 @@ Interface(
             ),
         ),
         "link_events": (
-            doc: "Return the link events summary for the given controller port and transceiver",
+            doc: "Return the link events for the given controller port and transceiver",
             args: {
                 "port": "u8",
                 "txr": (
@@ -52,7 +49,7 @@ Interface(
                 ),
             },
             reply: Result(
-                ok: "LinkEvents",
+                ok: "u8",
                 err: CLike("IgnitionError"),
             ),
         ),
@@ -84,11 +81,14 @@ Interface(
                 err: CLike("IgnitionError"),
             ),
         ),
-        "state_dump": (
-            doc: "Return the state of all ports",
-            args: {},
+
+        "port_state_batch": (
+            doc: "Return the state for the given controller ports as indicated by the ports bit vector",
+            args: {
+                "ports": "u64",
+            },
             reply: Result(
-                ok: "[u64; 40]",
+                ok: "[PortState; 40]",
                 err: CLike("IgnitionError"),
             ),
         ),
